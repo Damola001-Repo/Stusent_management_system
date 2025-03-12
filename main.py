@@ -1,7 +1,9 @@
+from operator import index
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QWidget, QGridLayout, QLabel, \
     QLineEdit, QPushButton, QMainWindow, QTableWidget, QTableWidgetItem, \
-    QDialog, QVBoxLayout, QLayout, QComboBox, QTabBar, QToolBar
+    QDialog, QVBoxLayout, QLayout, QComboBox, QTabBar, QToolBar, QStatusBar
 from PyQt6.QtGui import QAction, QIcon
 import sqlite3
 import sys
@@ -41,6 +43,29 @@ class Main(QMainWindow):
         toolbar.addAction(add_student_action)
         toolbar.addAction(search_action)
 
+        # Create status bar and add status bar elements
+        self.statusbar = QStatusBar()
+        self.setStatusBar(self.statusbar)
+
+        # Detect a cell click
+        self.table.cellClicked.connect(self.cell_clicked)
+
+
+    def cell_clicked(self):
+        edit_button = QPushButton("Edit Record")
+        edit_button.clicked.connect(self.edit)
+
+        delete_button = QPushButton("Delete Record")
+        delete_button.clicked.connect(self.delete)
+
+        children = self.findChildren(QPushButton)
+        if children:
+            for child in children:
+                self.statusbar.removeWidget(child)
+
+        self.statusbar.addWidget(edit_button)
+        self.statusbar.addWidget(delete_button)
+
     def load_data(self):
         connection = sqlite3.connect('database.db')
         result = connection.execute("SELECT * FROM students")
@@ -59,6 +84,13 @@ class Main(QMainWindow):
         dialog = SearchDialog()
         dialog.exec()
 
+    def edit(self):
+        dialog = EditDialog()
+        dialog.exec()
+
+    def delete(self):
+        dialog = DeleteDialog()
+        dialog.exec()
 
 class InsertDialog(QDialog):
     def __init__(self):
@@ -139,6 +171,66 @@ class SearchDialog(QDialog):
         for item in items:
             print(item)
             student_management_info.table.item(item.row(), 1).setSelected(True)
+
+class EditDialog(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Update Student Data")
+        self.setFixedWidth(300)
+        self.setFixedHeight(300)
+
+        layout = QVBoxLayout()
+
+        # Get student name from selected row
+        index = student_management_info.table.currentRow()
+        student_name = student_management_info.table.item(index, 1).text()
+
+        # Get id from selected row
+        self.student_id = student_management_info.table.item(index, 0).text()
+
+        # Add student name widget
+        self.student_name = QLineEdit(student_name)
+        self.student_name.setPlaceholderText("Name")
+        layout.addWidget(self.student_name)
+
+        # Add  combo box of course
+        course_name = student_management_info.table.item(index, 2).text()
+        self.course_name = QComboBox()
+        courses = ["Biology", "Math", "Astronomy", "Physics"]
+        self.course_name.addItems(courses)
+        self.course_name.setCurrentText(course_name)
+        layout.addWidget(self.course_name)
+
+        # Add mobile widget
+        student_mobile = student_management_info.table.item(index, 3).text()
+        self.mobile = QLineEdit(student_mobile)
+        self.mobile.setPlaceholderText("Mobile")
+        layout.addWidget(self.mobile)
+
+        # Add submit button
+        button = QPushButton("update")
+        button.clicked.connect(self.update_student)
+        layout.addWidget(button)
+
+        self.setLayout(layout)
+
+    def update_student(self):
+        name = self.student_name.text()
+        course = self.course_name.itemText(self.course_name.currentIndex())
+        mobile = self.mobile.text()
+        connection = sqlite3.connect("database.db")
+        cursor = connection.cursor()
+        cursor.execute("UPDATE students SET name = ?, course = ?, mobile = ? WHERE id = ?;",
+                       (name, course, mobile, self.student_id))
+        connection.commit()
+        cursor.close()
+        connection.close()
+        student_management_info.load_data()
+
+class DeleteDialog(QDialog):
+    def __init__(self):
+        super().__init__()
+
 
 
 app = QApplication(sys.argv)
